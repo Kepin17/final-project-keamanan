@@ -7,9 +7,8 @@ import OtpPage from "./pages/Auth/OtpPage";
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<h1>Home Page</h1>} />
+      <Route path="/" element={<Dashboard />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/auth-otp" element={<OtpPage />} />
       <Route path="*" element={<h1>404 Not Found</h1>} />
     </Routes>
