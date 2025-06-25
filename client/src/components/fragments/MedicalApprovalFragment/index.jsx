@@ -3,10 +3,14 @@ import ApprovalCard from "../../elements/ApprovalCard";
 import NotificationBox from "../../elements/NotificationBox";
 import Input from "../../elements/Input";
 import Button from "../../elements/Button";
+import OtpInput from "../../elements/OTPInput";
+import FormInput from "../../elements/Input";
 
 const MedicalApprovalFragment = () => {
-  // Sample data - replace with actual API data
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [accessCode, setAccessCode] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [durationCode, setDurationCode] = useState("");
   const [approvalRequests] = useState([
     {
       doctor: "Dr. John Smith",
@@ -78,18 +82,85 @@ const MedicalApprovalFragment = () => {
   };
 
   const handleApprove = (doctor, patient) => {
-    // Handle approval logic
-    console.log(`Approved access for ${doctor} to patient ${patient}'s records`);
+    setSelectedRequest({ doctor, patient });
+    setIsModalOpen(true);
+    setAccessCode(""); // Reset access code when opening modal
+    setDurationCode(""); // Reset duration code when opening modal
   };
 
-  const handleReject = (doctor, patient) => {
-    // Handle rejection logic
-    console.log(`Rejected access for ${doctor} to patient ${patient}'s records`);
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedRequest(null);
+  };
+
+  const handleSubmitAccess = () => {
+    if (!accessCode || !durationCode) {
+      alert("Please fill in all required fields");
+      return;
+    }
+    // Handle approval logic with access code
+    console.log(`Approved access for ${selectedRequest.doctor} to patient ${selectedRequest.patient}'s records`);
+    console.log(`Access Code: ${accessCode}, Duration: ${durationCode} days`);
+    handleCloseModal();
   };
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-      {/* Access Code Generator Section */}
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 relative">
+      {/* Modal and Backdrop */}
+      {isModalOpen && (
+        <>
+          {/* Modal Backdrop */}
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={handleCloseModal} />
+
+          {/* Approval Modal */}
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-50">
+            <div className="bg-white rounded-2xl shadow-xl p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h1 className="font-bold text-2xl text-gray-800">Grant Access</h1>
+                  <p className="text-sm text-gray-500 mt-1">Generate access code for {selectedRequest?.doctor} to view patient records</p>
+                </div>
+                <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">Request Details:</span>
+                    <br />
+                    Doctor: {selectedRequest?.doctor}
+                    <br />
+                    Patient: {selectedRequest?.patient}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <FormInput name="accessCode" inputType="text" inputPlaceholder="Access Code" isRequired={true} value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="w-full">
+                    Access Code
+                  </FormInput>
+                  <Button onClick={handleGenerateCode} className="w-full bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 py-2.5 rounded-lg font-medium shadow-sm shadow-blue-200">
+                    Generate Code
+                  </Button>
+                </div>
+
+                <FormInput name="durationCode" inputType="number" inputPlaceholder="Enter duration in days" isRequired={true} value={durationCode} onChange={(e) => setDurationCode(e.target.value)} className="w-full">
+                  Duration Code / Day
+                </FormInput>
+
+                <Button onClick={handleSubmitAccess} className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white transition-all duration-200 py-2.5 rounded-lg font-medium shadow-sm shadow-green-200 mt-4">
+                  Grant Access
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Main Content */}
       <div className="xl:col-span-2 space-y-8">
         {/* Approval Requests Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -107,7 +178,7 @@ const MedicalApprovalFragment = () => {
 
       {/* Notifications Section */}
       <div className="xl:col-span-1">
-        <div className="sticky top-8">
+        <div className=" top-8">
           <NotificationBox notifications={notifications} />
         </div>
       </div>

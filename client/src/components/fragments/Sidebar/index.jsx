@@ -2,8 +2,6 @@ import { Link } from "react-router-dom";
 import { MdDashboard } from "react-icons/md";
 import List from "../../elements/List";
 import { FaHandHoldingMedical, FaHistory, FaHospitalUser } from "react-icons/fa";
-import { TbReportMedical } from "react-icons/tb";
-import { CiMedicalClipboard } from "react-icons/ci";
 import { RiMenu3Line, RiCloseLine } from "react-icons/ri";
 import Logo from "../../elements/Logo";
 import { useState, useEffect } from "react";
@@ -31,7 +29,7 @@ const SideBar = () => {
   return (
     <>
       {/* Mobile Hamburger Button */}
-      <button onClick={toggleMobileMenu} className="md:hidden fixed top-4 right-4 z-50 p-2 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-all">
+      <button onClick={toggleMobileMenu} className="md:hidden fixed top-4 right-4 z-50 p-2 rounded-lg bg-slate-800 text-w`h`ite hover:bg-slate-700 transition-all">
         {isMobileMenuOpen ? <RiCloseLine className="text-2xl" /> : <RiMenu3Line className="text-2xl" />}
       </button>
 

@@ -1,4 +1,5 @@
-import PatientDataFragment from "../../../../../final-project-keamanian/client/src/components/fragments/PatientDataFragment";
+import React from 'react';
+import PatientDataFragment from '../../components/fragments/PatientDataFragment';
 
 const PatientDataPage = () => {
   return (
