@@ -223,62 +223,68 @@ const PatientDataFragment = () => {
           </Button>
         </div>
 
-        {/* Patient Table */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date of Birth</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gender</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {patients.map((patient) => (
-                <tr key={patient.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{patient.name}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{patient.dateOfBirth}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{patient.gender}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{patient.contact}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">{patient.lastVisit}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{patient.status}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(patient)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+        {/* Patient Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {patients.map((patient) => (
+            <div key={patient.id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-4">
+              <div className="space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">{patient.name}</h3>
+                    <p className="text-sm text-gray-500">{patient.dateOfBirth}</p>
+                  </div>
+                  <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{patient.status}</span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    {patient.gender}
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                      />
+                    </svg>
+                    {patient.contact}
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Last Visit: {patient.lastVisit}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div>{getStatusBadge(patient)}</div>
+                  <div className="pt-2">
                     {patient.requestStatus === "approved" ? (
-                      <button className="text-green-600 hover:text-green-900" onClick={() => handleViewAccessDetails(patient)}>
+                      <button onClick={() => handleViewAccessDetails(patient)} className="w-full text-center py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors font-medium text-sm">
                         Enter Access Code
                       </button>
                     ) : (
                       <button
                         onClick={() => handleRequestAccess(patient)}
-                        className={`text-blue-600 hover:text-blue-900 ${patient.requestStatus === "pending" ? "opacity-50 cursor-not-allowed" : ""}`}
+                        className={`w-full text-center py-2 ${
+                          patient.requestStatus === "pending" ? "bg-gray-50 text-gray-400 cursor-not-allowed" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        } rounded-lg transition-colors font-medium text-sm`}
                         disabled={patient.requestStatus === "pending"}
                       >
                         {patient.requestStatus === "pending" ? "Request Pending" : "Request Access"}
                       </button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
