@@ -17,11 +17,22 @@ class User extends Authenticatable
      *
      * @var array<int, string>
      */
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
+    protected$fillable = [
+        "name",
+        "phone",
+        "role",
+        "email",
+        "department",
+        "password"
     ];
+
+    public function isAdmin() {
+        return $this->role === 'admin';
+    }
+
+    public function isDokter() {
+        return $this->role === 'dokter';
+    }
 
     /**
      * The attributes that should be hidden for serialization.
