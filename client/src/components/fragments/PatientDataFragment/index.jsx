@@ -1,50 +1,52 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Button from "../../elements/Button";
 import FormInput from "../../elements/Input";
+import axios from "axios";
+import { getUrlApiWithPath } from "../../../utils/url_api";
 
 const PatientDataFragment = () => {
-  const [patients, setPatients] = useState([
-    {
-      id: 1,
-      name: "John Doe",
-      dateOfBirth: "1990-05-15",
-      gender: "Male",
-      contact: "+1234567890",
-      address: "123 Main St, City",
-      lastVisit: "2025-06-20",
-      status: "Active",
-      requestStatus: "approved",
-      accessType: "view",
-      accessCode: "ABC123",
-      accessExpiry: "2025-07-25",
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      dateOfBirth: "1985-08-22",
-      gender: "Female",
-      contact: "+1987654321",
-      address: "456 Oak Ave, Town",
-      lastVisit: "2025-06-18",
-      status: "Active",
-      requestStatus: "approved",
-      accessType: "edit",
-      accessCode: "XYZ789",
-      accessExpiry: "2025-07-20",
-    },
-    {
-      id: 3,
-      name: "Robert Johnson",
-      dateOfBirth: "1992-03-10",
-      gender: "Male",
-      contact: "+1122334455",
-      address: "789 Pine St, Village",
-      lastVisit: "2025-06-15",
-      status: "Active",
-      requestStatus: "pending",
-      accessType: "view",
-    },
-  ]);
+  const [patients, setPatients] = useState([]);
+  const [fetchError, setFetchError] = useState("");
+  const [isLoadingList, setIsLoadingList] = useState(true);
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(getUrlApiWithPath("patients"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        const formattedPatients = response.data.map((patient) => ({
+          id: patient.id,
+          name: patient.name,
+          dateOfBirth: patient.birth_date,
+          gender: patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1),
+          contact: patient.phone,
+          address: patient.address,
+          status: "Active",
+          lastVisit: patient.latest_visit?.split("T")[0] || patient.created_at?.split("T")[0],
+          requestStatus: patient.access_status || "none",
+          accessType: patient.access_type || null,
+          accessCode: patient.access_code || null,
+          accessExpiry: patient.access_expiry || null,
+        }));
+
+        setPatients(formattedPatients);
+        setFetchError("");
+      } catch (err) {
+        console.error("Error fetching patients:", err);
+        setFetchError("Failed to load patients. Please try again later.");
+      } finally {
+        setIsLoadingList(false);
+      }
+    };
+
+    fetchPatients();
+  }, []);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -53,10 +55,12 @@ const PatientDataFragment = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [newPatient, setNewPatient] = useState({
     name: "",
-    dateOfBirth: "",
+    birth_date: "",
     gender: "",
-    contact: "",
+    phone: "",
     address: "",
+    diagnosis: "",
+    notes: "",
   });
   const [accessRequests, setAccessRequests] = useState([]);
   const [selectedAccessType, setSelectedAccessType] = useState("");
@@ -70,24 +74,72 @@ const PatientDataFragment = () => {
     notes: "",
     date: new Date().toISOString().split("T")[0],
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleCreatePatient = () => {
-    // Add validation here
-    const patientData = {
-      ...newPatient,
-      id: patients.length + 1,
-      lastVisit: new Date().toISOString().split("T")[0],
-      status: "Active",
-    };
-    setPatients([...patients, patientData]);
-    setIsCreateModalOpen(false);
-    setNewPatient({
-      name: "",
-      dateOfBirth: "",
-      gender: "",
-      contact: "",
-      address: "",
-    });
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewPatient((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleCreatePatient = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const requestBody = {
+        name: newPatient.name,
+        birth_date: newPatient.birth_date, // Already in YYYY-MM-DD format from the date input
+        gender: newPatient.gender.toLowerCase(),
+        phone: newPatient.phone,
+        address: newPatient.address,
+        diagnosis: newPatient.diagnosis,
+        notes: newPatient.notes,
+      };
+
+      const response = await axios.post(getUrlApiWithPath("patients"), requestBody, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.data) {
+        // Add the new patient to the list
+        const createdPatient = {
+          id: response.data.id,
+          name: newPatient.name,
+          dateOfBirth: newPatient.birth_date,
+          gender: newPatient.gender,
+          contact: newPatient.phone,
+          address: newPatient.address,
+          status: "Active",
+          lastVisit: new Date().toISOString().split("T")[0],
+        };
+
+        setPatients((prev) => [...prev, createdPatient]);
+        setIsCreateModalOpen(false);
+        setNewPatient({
+          name: "",
+          birth_date: "",
+          gender: "",
+          phone: "",
+          address: "",
+          diagnosis: "",
+          notes: "",
+        });
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to create patient");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRequestAccess = (patient) => {
@@ -290,60 +342,141 @@ const PatientDataFragment = () => {
 
       {/* Create Patient Modal */}
       {isCreateModalOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={() => setIsCreateModalOpen(false)} />
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-md z-50">
-            <div className="bg-white rounded-2xl shadow-xl p-6 mx-4" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h1 className="font-bold text-2xl text-gray-800">Add New Patient</h1>
-                  <p className="text-sm text-gray-500 mt-1">Enter patient information</p>
-                </div>
-                <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-6 overflow-y-auto">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-2xl shadow-xl transform transition-all my-auto">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Add New Patient</h2>
+                <p className="mt-1 text-sm text-gray-500">Enter patient's information below</p>
+              </div>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-all">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                </button>
+                  {error}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleCreatePatient} className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[calc(100vh-16rem)] overflow-y-auto pr-2">
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <FormInput
+                  name="name"
+                  type="text"
+                  value={newPatient.name}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter patient's full name"
+                  required
+                />
               </div>
 
-              <div className="space-y-4">
-                <FormInput name="name" inputType="text" inputPlaceholder="Enter patient name" isRequired={true} value={newPatient.name} onChange={(e) => setNewPatient({ ...newPatient, name: e.target.value })}>
-                  Full Name
-                </FormInput>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <input
+                  name="birth_date"
+                  type="date"
+                  value={newPatient.birth_date}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                  max={new Date().toISOString().split("T")[0]}
+                />
+              </div>
 
-                <FormInput name="dateOfBirth" inputType="date" isRequired={true} value={newPatient.dateOfBirth} onChange={(e) => setNewPatient({ ...newPatient, dateOfBirth: e.target.value })}>
-                  Date of Birth
-                </FormInput>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                <select name="gender" value={newPatient.gender} onChange={handleInputChange} className="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:ring-blue-500 focus:border-blue-500 bg-white" required>
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Gender</label>
-                  <select
-                    value={newPatient.gender}
-                    onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <FormInput
+                  name="phone"
+                  type="number"
+                  value={newPatient.phone}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter phone number"
+                  pattern="[0-9]*"
+                  required
+                />
+              </div>
 
-                <FormInput name="contact" inputType="tel" inputPlaceholder="Enter contact number" isRequired={true} value={newPatient.contact} onChange={(e) => setNewPatient({ ...newPatient, contact: e.target.value })}>
-                  Contact Number
-                </FormInput>
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <FormInput
+                  name="address"
+                  type="text"
+                  value={newPatient.address}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter complete address"
+                  required
+                />
+              </div>
 
-                <FormInput name="address" inputType="text" inputPlaceholder="Enter address" isRequired={true} value={newPatient.address} onChange={(e) => setNewPatient({ ...newPatient, address: e.target.value })}>
-                  Address
-                </FormInput>
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Diagnosis</label>
+                <textarea
+                  name="diagnosis"
+                  value={newPatient.diagnosis}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  placeholder="Enter initial diagnosis"
+                  required
+                />
+              </div>
 
-                <Button onClick={handleCreatePatient} className="w-full bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 py-2.5 rounded-lg font-medium">
-                  Create Patient
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                <textarea
+                  name="notes"
+                  value={newPatient.notes}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  placeholder="Enter any additional notes"
+                />
+              </div>
+
+              <div className="col-span-1 md:col-span-2 flex gap-4 pt-4 sticky bottom-0 bg-white">
+                <Button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 px-6 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl font-medium transition-colors">
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-1 px-6 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-medium transition-colors flex items-center justify-center" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Patient"
+                  )}
                 </Button>
               </div>
-            </div>
+            </form>
           </div>
-        </>
+        </div>
       )}
 
       {/* Request Access Modal */}

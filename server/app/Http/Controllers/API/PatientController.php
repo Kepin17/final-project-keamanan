@@ -11,6 +11,51 @@ use Illuminate\Support\Facades\Crypt;
 
 class PatientController extends Controller
 {
+    /**
+     * Display a listing of patients.
+     */
+    public function index()
+    {
+        // Validasi role: hanya dokter yang boleh
+        if (!auth()->user()->isDokter()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $patients = Patient::latest()
+                ->with(['medicalRecords' => function($query) {
+                    $query->latest()->first();
+                }])
+                ->get()
+                ->map(function($patient) {
+                    $latestRecord = $patient->medicalRecords->first();
+                    return [
+                        'id' => $patient->id,
+                        'name' => $patient->name,
+                        'birth_date' => $patient->birth_date,
+                        'gender' => $patient->gender,
+                        'phone' => $patient->phone,
+                        'address' => $patient->address,
+                        'created_at' => $patient->created_at,
+                        'diagnosis' => $latestRecord ? Crypt::decryptString($latestRecord->diagnosis_encrypted) : null,
+                        'notes' => $latestRecord ? $latestRecord->notes : null,
+                        // Access control fields
+                        'access_status' => $patient->access_status ?? 'none',
+                        'access_type' => $patient->access_type,
+                        'access_code' => $patient->access_code,
+                        'access_expiry' => $patient->access_expiry,
+                    ];
+                });
+
+            return response()->json($patients, 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch patients'], 500);
+        }
+    }
+
+    /**
+     * Store a new patient
+     */
     public function store(Request $request)
     {
         // Validasi role: hanya dokter yang boleh
@@ -29,23 +74,115 @@ class PatientController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        // Simpan pasien
-        $patient = Patient::create([
-            'name' => $data['name'],
-            'birth_date' => $data['birth_date'],
-            'gender' => $data['gender'] ?? null,
-            'phone' => $data['phone'] ?? null,
-            'address' => $data['address'] ?? null,
-        ]);
+        try {
+            // Simpan pasien
+            $patient = Patient::create([
+                'name' => $data['name'],
+                'birth_date' => $data['birth_date'],
+                'gender' => $data['gender'] ?? null,
+                'phone' => $data['phone'] ?? null,
+                'address' => $data['address'] ?? null,
+            ]);
 
-        // Simpan diagnosis awal
-        MedicalRecord::create([
-            'patient_id' => $patient->id,
-            'dokter_id' => auth()->id(),
-            'diagnosis_encrypted' => Crypt::encryptString($data['diagnosis']),
-            'notes' => $data['notes'] ?? null,
-        ]);
+            // Simpan diagnosis awal
+            MedicalRecord::create([
+                'patient_id' => $patient->id,
+                'dokter_id' => auth()->id(),
+                'diagnosis_encrypted' => Crypt::encryptString($data['diagnosis']),
+                'notes' => $data['notes'] ?? null,
+            ]);
 
-        return new PatientResource($patient->load('medicalRecords'));
+            // Load relasi dan return response
+            $patient->load('medicalRecords');
+            $response = [
+                'id' => $patient->id,
+                'name' => $patient->name,
+                'birth_date' => $patient->birth_date,
+                'gender' => $patient->gender,
+                'phone' => $patient->phone,
+                'address' => $patient->address,
+                'created_at' => $patient->created_at,
+                'diagnosis' => $data['diagnosis'], // Original diagnosis (not encrypted)
+                'notes' => $data['notes'],
+            ];
+
+            return response()->json($response, 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create patient',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Display the specified patient with their medical records
+     */
+    public function show($id)
+    {
+        try {
+            $patient = Patient::with('medicalRecords')->findOrFail($id);
+            
+            // Decrypt diagnoses
+            $patient->medicalRecords->transform(function($record) {
+                $record->diagnosis = Crypt::decryptString($record->diagnosis_encrypted);
+                unset($record->diagnosis_encrypted);
+                return $record;
+            });
+
+            return response()->json($patient, 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Patient not found'], 404);
+        }
+    }
+
+    /**
+     * Update the specified patient
+     */
+    public function update(Request $request, $id)
+    {
+        if (!auth()->user()->isDokter()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $validator = \Validator::make($request->all(), [
+                'name' => 'string|max:255',
+                'birth_date' => 'date',
+                'gender' => 'string|max:20',
+                'phone' => 'string|max:20',
+                'address' => 'string|max:255',
+                'diagnosis' => 'string',
+                'notes' => 'nullable|string|max:500'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $patient = Patient::findOrFail($id);
+            
+            // Update patient info
+            $patient->update($request->only([
+                'name', 'birth_date', 'gender', 'phone', 'address'
+            ]));
+
+            // If diagnosis is provided, create new medical record
+            if ($request->has('diagnosis')) {
+                MedicalRecord::create([
+                    'patient_id' => $patient->id,
+                    'dokter_id' => auth()->id(),
+                    'diagnosis_encrypted' => Crypt::encryptString($request->diagnosis),
+                    'notes' => $request->notes
+                ]);
+            }
+
+            return response()->json($patient, 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to update patient'], 500);
+        }
     }
 }

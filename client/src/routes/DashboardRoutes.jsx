@@ -11,7 +11,7 @@ const DashboardRoutes = () => {
   return (
     <DashboardLayout>
       <Routes>
-        <Route index element={<Dashboard />} />
+        <Route index element={<MedicalApprovalPage />} />
         <Route path="activity" element={<ActivityHistoryPage />} />
         <Route path="medical-approval" element={<MedicalApprovalPage />} />
         <Route path="staff" element={<StaffDataPage />} />

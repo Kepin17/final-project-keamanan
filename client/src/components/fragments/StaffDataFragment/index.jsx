@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import Button from "../../elements/Button";
 import Input from "../../elements/Input";
 import { FaPlus, FaSearch, FaEdit, FaTrash } from "react-icons/fa";
+import axios from "axios";
+import { getUrlApiWithPath } from "../../../utils/url_api";
+import { toast } from "react-toastify";
 
 const StaffDataFragment = () => {
   const [staffList, setStaffList] = useState([]);
@@ -10,52 +13,208 @@ const StaffDataFragment = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentStaff, setCurrentStaff] = useState(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    department: "",
+    password: "",
+    role: "doctor", // default role
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  // Mock data - replace with actual API calls
-  const mockStaffData = [
-    { id: 1, name: "Dr. John Doe", role: "doctor", specialization: "Cardiology", email: "john@hospital.com", phone: "123-456-7890" },
-    { id: 2, name: "Jane Smith", role: "admin", department: "Reception", email: "jane@hospital.com", phone: "123-456-7891" },
-    { id: 3, name: "Dr. Sarah Wilson", role: "doctor", specialization: "Pediatrics", email: "sarah@hospital.com", phone: "123-456-7892" },
-  ];
+  const fetchStaffData = async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(getUrlApiWithPath("users"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // API returns array directly
+      const staffData = response.data || [];
+      setStaffList(staffData);
+      setFilteredStaff(staffData);
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || "Failed to fetch staff data";
+      setError(errorMessage);
+      toast.error(errorMessage);
+      setStaffList([]);
+      setFilteredStaff([]);
+
+      // Handle unauthorized access
+      if (err.response?.status === 403) {
+        toast.error("You don't have permission to access staff data");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Replace with API call
-    setStaffList(mockStaffData);
-    setFilteredStaff(mockStaffData);
+    fetchStaffData();
   }, []);
 
   const handleFilter = (role) => {
     setSelectedRole(role);
+    if (!Array.isArray(staffList)) return;
+
     if (role === "all") {
       setFilteredStaff(staffList);
     } else {
-      setFilteredStaff(staffList.filter((staff) => staff.role === role));
+      setFilteredStaff(staffList.filter((staff) => staff?.role === role));
     }
   };
 
   const handleSearch = (e) => {
     const query = e.target.value.toLowerCase();
     setSearchQuery(query);
-    const filtered = staffList.filter((staff) => (selectedRole === "all" || staff.role === selectedRole) && (staff.name.toLowerCase().includes(query) || staff.email.toLowerCase().includes(query)));
+    if (!Array.isArray(staffList)) return;
+
+    const filtered = staffList.filter((staff) => (selectedRole === "all" || staff?.role === selectedRole) && (staff?.name?.toLowerCase().includes(query) || staff?.email?.toLowerCase().includes(query)));
     setFilteredStaff(filtered);
   };
 
-  const handleAddStaff = () => {
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      phone: "",
+      department: "",
+      role: "doctor",
+    });
     setCurrentStaff(null);
+    setError("");
+  };
+
+  const handleAddStaff = () => {
+    resetForm();
     setIsModalOpen(true);
   };
 
   const handleEditStaff = (staff) => {
     setCurrentStaff(staff);
+    setFormData({
+      name: staff.name,
+      email: staff.email,
+      phone: staff.phone || "",
+      department: staff.department || "",
+      role: staff.role,
+      // Don't set password for editing
+    });
+    setError("");
     setIsModalOpen(true);
   };
 
-  const handleDeleteStaff = (staffId) => {
-    if (window.confirm("Are you sure you want to delete this staff member?")) {
-      // Replace with API call
-      const updatedList = staffList.filter((staff) => staff.id !== staffId);
-      setStaffList(updatedList);
-      setFilteredStaff(updatedList);
+  const submitForm = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+
+      let response;
+      if (currentStaff) {
+        // Update existing staff
+        response = await axios.put(
+          getUrlApiWithPath(`users/${currentStaff.id}`),
+          {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            department: formData.department,
+            role: formData.role,
+            ...(formData.password && { password: formData.password }),
+          },
+          { headers }
+        );
+        toast.success("Staff member updated successfully");
+      } else {
+        // Create new staff
+        response = await axios.post(
+          getUrlApiWithPath("users"),
+          {
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            phone: formData.phone,
+            department: formData.department,
+            role: formData.role,
+          },
+          { headers }
+        );
+        toast.success("Staff member created successfully");
+      }
+
+      await fetchStaffData(); // Refresh the list
+      setIsModalOpen(false);
+      resetForm();
+    } catch (err) {
+      let errorMessage = "An error occurred";
+
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.status === 403) {
+        errorMessage = "You don't have permission to perform this action";
+      } else if (err.response?.status === 422) {
+        errorMessage = "Please check your input data";
+      }
+
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteStaff = async (staff) => {
+    if (!window.confirm(`Are you sure you want to delete ${staff.name}?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(getUrlApiWithPath(`users/${staff.id}`), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      toast.success("Staff member deleted successfully");
+      await fetchStaffData(); // Refresh the list
+    } catch (err) {
+      let errorMessage = "Failed to delete staff member";
+
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.status === 403) {
+        errorMessage = "You don't have permission to delete staff members";
+      }
+
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -63,17 +222,6 @@ const StaffDataFragment = () => {
     <div className="bg-white rounded-lg shadow-lg p-6">
       {/* Search and Filter Section */}
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div className="flex items-center gap-4">
-          <Button className={`px-4 py-2 rounded ${selectedRole === "all" ? "bg-blue-600 text-white" : "bg-gray-200"}`} onClick={() => handleFilter("all")}>
-            All Staff
-          </Button>
-          <Button className={`px-4 py-2 rounded ${selectedRole === "doctor" ? "bg-blue-600 text-white" : "bg-gray-200"}`} onClick={() => handleFilter("doctor")}>
-            Doctors
-          </Button>
-          <Button className={`px-4 py-2 rounded ${selectedRole === "admin" ? "bg-blue-600 text-white" : "bg-gray-200"}`} onClick={() => handleFilter("admin")}>
-            Admins
-          </Button>
-        </div>
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
             <Input type="text" placeholder="Search staff..." value={searchQuery} onChange={handleSearch} className="pl-10 pr-4 py-2 w-full" />
@@ -99,7 +247,7 @@ const StaffDataFragment = () => {
                   <button onClick={() => handleEditStaff(staff)} className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors">
                     <FaEdit className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDeleteStaff(staff.id)} className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors">
+                  <button onClick={() => handleDeleteStaff(staff)} className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors">
                     <FaTrash className="w-4 h-4" />
                   </button>
                 </div>
@@ -150,36 +298,50 @@ const StaffDataFragment = () => {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">{currentStaff ? "Edit Staff Member" : "Add New Staff Member"}</h2>
-            <form className="space-y-4">
+            <div className="flex justify-between items-start mb-6">
+              <h2 className="text-xl font-bold">{currentStaff ? "Edit Staff Member" : "Register New Doctor"}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">{error}</div>}
+
+            <form onSubmit={submitForm} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <Input type="text" defaultValue={currentStaff?.name} className="w-full" />
+                <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                <Input type="text" name="name" value={formData.name} onChange={handleInputChange} className="w-full" required />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Role</label>
-                <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                  <option value="doctor">Doctor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">{currentStaff?.role === "doctor" ? "Specialization" : "Department"}</label>
-                <Input type="text" defaultValue={currentStaff?.specialization || currentStaff?.department} className="w-full" />
-              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700">Email</label>
-                <Input type="email" defaultValue={currentStaff?.email} className="w-full" />
+                <Input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full" required />
               </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700">Phone</label>
-                <Input type="tel" defaultValue={currentStaff?.phone} className="w-full" />
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <Input type="password" name="password" value={formData.password} onChange={handleInputChange} className="w-full" required />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Phone Number</label>
+                <Input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} className="w-full" required />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Department</label>
+                <Input type="text" name="department" value={formData.department} onChange={handleInputChange} className="w-full" required />
+              </div>
+
               <div className="flex justify-end gap-4 mt-6">
-                <Button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded">
+                <Button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 text-gray-800 hover:bg-gray-300 rounded">
                   Cancel
                 </Button>
-                <Button className="px-4 py-2 bg-blue-600 text-white rounded">{currentStaff ? "Update" : "Add"} Staff</Button>
+                <Button type="submit" className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded" disabled={isSubmitting}>
+                  {isSubmitting ? "Registering..." : "Register Doctor"}
+                </Button>
               </div>
             </form>
           </div>
