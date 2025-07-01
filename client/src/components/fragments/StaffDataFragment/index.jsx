@@ -19,7 +19,7 @@ const StaffDataFragment = () => {
     phone: "",
     department: "",
     password: "",
-    role: "doctor", // default role
+    role: "docter",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
