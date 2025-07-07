@@ -3,50 +3,48 @@ import Button from "../../elements/Button";
 import FormInput from "../../elements/Input";
 import axios from "axios";
 import { getUrlApiWithPath } from "../../../utils/url_api";
+import { useRealtimePatients } from "../../../hooks/useRealtimeData";
+import { toast } from "react-toastify";
 
 const PatientDataFragment = () => {
   const [patients, setPatients] = useState([]);
   const [fetchError, setFetchError] = useState("");
-  const [isLoadingList, setIsLoadingList] = useState(true);
+
+  // Use realtime data hook
+  const { data: realtimeData, loading: isLoadingList, error: realtimeError, lastUpdated, isInitialLoad, refreshData, forceUpdate } = useRealtimePatients();
 
   useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const response = await axios.get(getUrlApiWithPath("patients"), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
+    if (realtimeData && realtimeData.length >= 0) {
+      const formattedPatients = realtimeData.map((patient) => ({
+        id: patient.id,
+        name: patient.name,
+        dateOfBirth: patient.birth_date,
+        gender: patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : "Unknown",
+        contact: patient.phone,
+        address: patient.address,
+        status: "Active",
+        lastVisit: patient.latest_visit?.split("T")[0] || patient.created_at?.split("T")[0],
+        requestStatus: patient.access_status || "none",
+        accessType: patient.access_type || null,
+        accessCode: patient.access_code || null,
+        accessExpiry: patient.access_expiry || null,
+      }));
 
-        const formattedPatients = response.data.map((patient) => ({
-          id: patient.id,
-          name: patient.name,
-          dateOfBirth: patient.birth_date,
-          gender: patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1),
-          contact: patient.phone,
-          address: patient.address,
-          status: "Active",
-          lastVisit: patient.latest_visit?.split("T")[0] || patient.created_at?.split("T")[0],
-          requestStatus: patient.access_status || "none",
-          accessType: patient.access_type || null,
-          accessCode: patient.access_code || null,
-          accessExpiry: patient.access_expiry || null,
-        }));
+      setPatients(formattedPatients);
+      setFetchError("");
 
-        setPatients(formattedPatients);
-        setFetchError("");
-      } catch (err) {
-        console.error("Error fetching patients:", err);
-        setFetchError("Failed to load patients. Please try again later.");
-      } finally {
-        setIsLoadingList(false);
+      // Only show notification if it's not the initial load and data actually updated
+      if (lastUpdated && !isInitialLoad) {
+        toast.info("Patient records updated", { autoClose: 2000 });
       }
-    };
+    }
+  }, [realtimeData, lastUpdated, isInitialLoad]);
 
-    fetchPatients();
-  }, []);
+  useEffect(() => {
+    if (realtimeError) {
+      setFetchError(realtimeError);
+    }
+  }, [realtimeError]);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -62,7 +60,6 @@ const PatientDataFragment = () => {
     diagnosis: "",
     notes: "",
   });
-  const [accessRequests, setAccessRequests] = useState([]);
   const [selectedAccessType, setSelectedAccessType] = useState("");
   const [requestReason, setRequestReason] = useState("");
   const [accessCodeInput, setAccessCodeInput] = useState("");
@@ -111,19 +108,9 @@ const PatientDataFragment = () => {
       });
 
       if (response.data) {
-        // Add the new patient to the list
-        const createdPatient = {
-          id: response.data.id,
-          name: newPatient.name,
-          dateOfBirth: newPatient.birth_date,
-          gender: newPatient.gender,
-          contact: newPatient.phone,
-          address: newPatient.address,
-          status: "Active",
-          lastVisit: new Date().toISOString().split("T")[0],
-        };
+        // Force update to trigger notification on next data change
+        forceUpdate();
 
-        setPatients((prev) => [...prev, createdPatient]);
         setIsCreateModalOpen(false);
         setNewPatient({
           name: "",
@@ -149,91 +136,175 @@ const PatientDataFragment = () => {
     setRequestReason("");
   };
 
+  const handleSubmitRequest = async () => {
+    if (!selectedAccessType) {
+      toast.error("Please select an access type");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(
+        getUrlApiWithPath("request-access"),
+        {
+          patient_id: selectedPatient.id,
+          access_type: selectedAccessType,
+          reason: requestReason,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.data) {
+        // Update the patient's status to show pending request
+        const updatedPatients = patients.map((p) => {
+          if (p.id === selectedPatient.id) {
+            return {
+              ...p,
+              requestStatus: "pending",
+              accessType: selectedAccessType,
+            };
+          }
+          return p;
+        });
+        setPatients(updatedPatients);
+
+        setIsRequestModalOpen(false);
+        setSelectedPatient(null);
+        setSelectedAccessType("");
+        setRequestReason("");
+
+        // Refresh data to get latest state
+        refreshData();
+
+        // Show success message
+        toast.success("Access request submitted successfully! Check your email for approval updates.", {
+          autoClose: 5000,
+        });
+      }
+    } catch (err) {
+      console.error("Error requesting access:", err);
+      const errorMessage = err.response?.data?.message || "Failed to submit access request";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshPatientData = async () => {
+    setIsLoadingList(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(getUrlApiWithPath("patients"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const formattedPatients = response.data.map((patient) => ({
+        id: patient.id,
+        name: patient.name,
+        dateOfBirth: patient.birth_date,
+        gender: patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1),
+        contact: patient.phone,
+        address: patient.address,
+        status: "Active",
+        lastVisit: patient.latest_visit?.split("T")[0] || patient.created_at?.split("T")[0],
+        requestStatus: patient.access_status || "none",
+        accessType: patient.access_type || null,
+        accessCode: patient.access_code || null,
+        accessExpiry: patient.access_expiry || null,
+      }));
+
+      setPatients(formattedPatients);
+      setFetchError("");
+    } catch (err) {
+      console.error("Error fetching patients:", err);
+      setFetchError("Failed to load patients. Please try again later.");
+    } finally {
+      setIsLoadingList(false);
+    }
+  };
+
   const getStatusBadge = (patient) => {
     switch (patient.requestStatus) {
       case "pending":
-        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Request Pending</span>;
+        return (
+          <div className="space-y-1">
+            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Request Pending</span>
+            {patient.accessType && <div className="text-xs text-gray-500">Type: {patient.accessType === "view" ? "View Only" : "Edit Access"}</div>}
+          </div>
+        );
       case "approved":
         return (
           <div className="space-y-1">
-            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Access Granted ({patient.accessType})</span>
-            <div className="text-xs text-gray-500">
-              Code: {patient.accessCode}
-              <br />
-              Expires: {patient.accessExpiry}
-            </div>
+            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Access Granted ({patient.accessType === "view" ? "View" : "Edit"})</span>
+            <div className="text-xs text-gray-500">Expires: {patient.accessExpiry ? new Date(patient.accessExpiry).toLocaleDateString() : "N/A"}</div>
           </div>
         );
+      case "rejected":
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Access Denied</span>;
+      case "expired":
+        return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-600">Access Expired</span>;
       default:
         return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">No Access</span>;
     }
   };
 
-  const handleSubmitRequest = () => {
-    if (!selectedAccessType) {
-      alert("Please select an access type");
+  const handleAccessCodeSubmit = async () => {
+    if (!selectedPatient || !accessCodeInput) {
+      toast.error("Please enter the access code");
       return;
     }
 
-    const newRequest = {
-      patientId: selectedPatient.id,
-      patientName: selectedPatient.name,
-      accessType: selectedAccessType,
-      reason: requestReason,
-      status: "pending",
-      requestedAt: new Date().toISOString(),
-    };
+    setIsLoading(true);
+    setError("");
 
-    setAccessRequests([...accessRequests, newRequest]);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.post(
+        getUrlApiWithPath(`patients/${selectedPatient.id}/access`),
+        {
+          access_code: accessCodeInput,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-    // Update the patient's status to show pending request
-    const updatedPatients = patients.map((p) => {
-      if (p.id === selectedPatient.id) {
-        return {
-          ...p,
-          requestStatus: "pending",
-          accessType: selectedAccessType,
-        };
+      if (response.data) {
+        // Store the patient data with diagnosis
+        setMedicalHistory({
+          diagnosis: response.data.diagnosis || "",
+          symptoms: response.data.symptoms || "",
+          treatment: response.data.treatment || "",
+          medications: response.data.medications || "",
+          notes: response.data.notes || "",
+          date: new Date().toISOString().split("T")[0],
+        });
+
+        setIsAccessCodeModalOpen(false);
+        setIsMedicalHistoryModalOpen(true);
       }
-      return p;
-    });
-    setPatients(updatedPatients);
-
-    setIsRequestModalOpen(false);
-    setSelectedPatient(null);
-    setSelectedAccessType("");
-    setRequestReason("");
-  };
-
-  const handleAccessCodeSubmit = () => {
-    if (!selectedPatient || !accessCodeInput) return;
-
-    if (accessCodeInput === selectedPatient.accessCode) {
-      setIsAccessCodeModalOpen(false);
-      setIsMedicalHistoryModalOpen(true);
-    } else {
-      alert("Invalid access code");
+    } catch (err) {
+      console.error("Error accessing patient data:", err);
+      const errorMessage = err.response?.data?.message || "Invalid access code or access expired";
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  const handleMedicalHistorySubmit = () => {
-    if (selectedPatient?.accessType !== "edit") {
-      setIsMedicalHistoryModalOpen(false);
-      return;
-    }
-
-    // Here you would typically save the medical history to your backend
-    console.log("Medical history submitted:", medicalHistory);
-    setIsMedicalHistoryModalOpen(false);
-    setAccessCodeInput("");
-    setMedicalHistory({
-      diagnosis: "",
-      symptoms: "",
-      treatment: "",
-      medications: "",
-      notes: "",
-      date: new Date().toISOString().split("T")[0],
-    });
   };
 
   const handleViewAccessDetails = (patient) => {
@@ -241,10 +312,42 @@ const PatientDataFragment = () => {
     setIsAccessCodeModalOpen(true);
   };
 
-  const renderFormField = (label, value, onChange, placeholder, rows = 3) => {
-    const isViewOnly = selectedPatient?.accessType === "view";
+  const handleMedicalHistorySubmit = async () => {
+    if (selectedPatient?.accessType !== "edit") {
+      setIsMedicalHistoryModalOpen(false);
+      return;
+    }
 
-    if (isViewOnly) {
+    setIsLoading(true);
+
+    try {
+      // Here you would typically save the medical history to your backend
+      // For now, we'll just show a success message
+      console.log("Medical history submitted:", medicalHistory);
+      toast.success("Medical history updated successfully!");
+
+      setIsMedicalHistoryModalOpen(false);
+      setAccessCodeInput("");
+      setMedicalHistory({
+        diagnosis: "",
+        symptoms: "",
+        treatment: "",
+        medications: "",
+        notes: "",
+        date: new Date().toISOString().split("T")[0],
+      });
+    } catch (err) {
+      console.error("Error saving medical history:", err);
+      toast.error("Failed to save medical history. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renderFormField = (label, value, onChange, placeholder, rows = 3) => {
+    const canEdit = selectedPatient?.accessType === "edit";
+
+    if (!canEdit) {
       return (
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">{label}</label>
@@ -270,9 +373,17 @@ const PatientDataFragment = () => {
             <h2 className="text-xl font-semibold text-gray-800">Patient List</h2>
             <p className="text-sm text-gray-500 mt-1">Manage and view patient records</p>
           </div>
-          <Button onClick={() => setIsCreateModalOpen(true)} className="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 px-4 py-2 rounded-lg font-medium">
-            Add New Patient
-          </Button>
+          <div className="flex gap-3">
+            <button onClick={refreshPatientData} className="bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800 transition-all duration-200 px-4 py-2 rounded-lg font-medium flex items-center gap-2" disabled={isLoadingList}>
+              <svg className={`w-4 h-4 ${isLoadingList ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {isLoadingList ? "Refreshing..." : "Refresh"}
+            </button>
+            <button onClick={() => setIsCreateModalOpen(true)} className="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 px-4 py-2 rounded-lg font-medium">
+              Add New Patient
+            </button>
+          </div>
         </div>
 
         {/* Patient Cards Grid */}
@@ -318,18 +429,24 @@ const PatientDataFragment = () => {
                   <div>{getStatusBadge(patient)}</div>
                   <div className="pt-2">
                     {patient.requestStatus === "approved" ? (
-                      <button onClick={() => handleViewAccessDetails(patient)} className="w-full text-center py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors font-medium text-sm">
-                        Enter Access Code
+                      <button onClick={() => handleViewAccessDetails(patient)} className="w-full text-center py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors font-medium text-sm" disabled={isLoading}>
+                        {isLoading ? "Loading..." : "Enter Access Code"}
+                      </button>
+                    ) : patient.requestStatus === "pending" ? (
+                      <button className="w-full text-center py-2 bg-gray-50 text-gray-400 cursor-not-allowed rounded-lg font-medium text-sm" disabled>
+                        Request Pending
+                      </button>
+                    ) : patient.requestStatus === "rejected" ? (
+                      <button onClick={() => handleRequestAccess(patient)} className="w-full text-center py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm" disabled={isLoading}>
+                        {isLoading ? "Loading..." : "Request Again"}
+                      </button>
+                    ) : patient.requestStatus === "expired" ? (
+                      <button onClick={() => handleRequestAccess(patient)} className="w-full text-center py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm" disabled={isLoading}>
+                        {isLoading ? "Loading..." : "Request New Access"}
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleRequestAccess(patient)}
-                        className={`w-full text-center py-2 ${
-                          patient.requestStatus === "pending" ? "bg-gray-50 text-gray-400 cursor-not-allowed" : "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        } rounded-lg transition-colors font-medium text-sm`}
-                        disabled={patient.requestStatus === "pending"}
-                      >
-                        {patient.requestStatus === "pending" ? "Request Pending" : "Request Access"}
+                      <button onClick={() => handleRequestAccess(patient)} className="w-full text-center py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors font-medium text-sm" disabled={isLoading}>
+                        {isLoading ? "Loading..." : "Request Access"}
                       </button>
                     )}
                   </div>
@@ -510,21 +627,33 @@ const PatientDataFragment = () => {
                   </p>
                 </div>
 
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center text-green-800">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-sm font-medium">You will receive an email with the access code once your request is approved by the admin.</span>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-700">Access Type</label>
                   <select value={selectedAccessType} onChange={(e) => setSelectedAccessType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                     <option value="">Select access type</option>
-                    <option value="view">View Records</option>
+                    <option value="view">View Records Only</option>
                     <option value="edit">Edit Records</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {selectedAccessType === "view" ? "You will only be able to view patient records" : selectedAccessType === "edit" ? "You will be able to view and edit patient records" : "Choose the type of access you need"}
+                  </p>
                 </div>
 
-                <FormInput name="reason" inputType="text" inputPlaceholder="Enter additional notes (optional)" value={requestReason} onChange={(e) => setRequestReason(e.target.value)}>
-                  Additional Notes
+                <FormInput name="reason" inputType="text" inputPlaceholder="Enter reason for access (optional)" value={requestReason} onChange={(e) => setRequestReason(e.target.value)}>
+                  Reason for Access
                 </FormInput>
 
-                <Button onClick={handleSubmitRequest} className="w-full bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 py-2.5 rounded-lg font-medium">
-                  Submit Request
+                <Button onClick={handleSubmitRequest} className="w-full bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 py-2.5 rounded-lg font-medium" disabled={isLoading}>
+                  {isLoading ? "Submitting..." : "Submit Request"}
                 </Button>
               </div>
             </div>
@@ -557,7 +686,7 @@ const PatientDataFragment = () => {
                     <br />
                     Name: {selectedPatient?.name}
                     <br />
-                    Access Type: {selectedPatient?.accessType}
+                    Date of Birth: {selectedPatient?.dateOfBirth}
                   </p>
                 </div>
 
@@ -584,7 +713,7 @@ const PatientDataFragment = () => {
                 <div>
                   <h1 className="font-bold text-2xl text-gray-800">
                     Medical History
-                    {selectedPatient?.accessType === "view" && <span className="ml-2 text-sm font-normal text-gray-500">(View Only)</span>}
+                    <span className="ml-2 text-sm font-normal text-gray-500">({selectedPatient?.accessType === "edit" ? "Edit Mode" : "View Only"})</span>
                   </h1>
                   <p className="text-sm text-gray-500 mt-1">Patient: {selectedPatient?.name}</p>
                 </div>
@@ -602,8 +731,8 @@ const PatientDataFragment = () => {
                     type="date"
                     value={medicalHistory.date}
                     onChange={(e) => setMedicalHistory({ ...medicalHistory, date: e.target.value })}
-                    className={`w-full px-3 py-2 rounded-lg ${selectedPatient?.accessType === "view" ? "bg-gray-50 border-gray-200 text-gray-700" : "border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"}`}
-                    disabled={selectedPatient?.accessType === "view"}
+                    className={`w-full px-3 py-2 rounded-lg ${selectedPatient?.accessType === "edit" ? "border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500" : "bg-gray-50 border-gray-200 text-gray-700"}`}
+                    disabled={selectedPatient?.accessType !== "edit"}
                   />
                 </div>
 
@@ -618,19 +747,19 @@ const PatientDataFragment = () => {
                 {renderFormField("Additional Notes", medicalHistory.notes, (e) => setMedicalHistory({ ...medicalHistory, notes: e.target.value }), "Enter any additional notes")}
 
                 <div className="flex gap-4 pt-4">
-                  {selectedPatient?.accessType === "view" ? (
-                    <Button onClick={() => setIsMedicalHistoryModalOpen(false)} className="w-full bg-gray-500 text-white hover:bg-gray-600 active:bg-gray-700 transition-all duration-200 py-2.5 rounded-lg font-medium">
-                      Close
-                    </Button>
-                  ) : (
+                  {selectedPatient?.accessType === "edit" ? (
                     <>
                       <Button onClick={() => setIsMedicalHistoryModalOpen(false)} className="w-full bg-gray-500 text-white hover:bg-gray-600 active:bg-gray-700 transition-all duration-200 py-2.5 rounded-lg font-medium">
                         Cancel
                       </Button>
-                      <Button onClick={handleMedicalHistorySubmit} className="w-full bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 py-2.5 rounded-lg font-medium">
-                        Save Medical History
+                      <Button onClick={handleMedicalHistorySubmit} className="w-full bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 py-2.5 rounded-lg font-medium" disabled={isLoading}>
+                        {isLoading ? "Saving..." : "Save Changes"}
                       </Button>
                     </>
+                  ) : (
+                    <Button onClick={() => setIsMedicalHistoryModalOpen(false)} className="w-full bg-gray-500 text-white hover:bg-gray-600 active:bg-gray-700 transition-all duration-200 py-2.5 rounded-lg font-medium">
+                      Close
+                    </Button>
                   )}
                 </div>
               </div>

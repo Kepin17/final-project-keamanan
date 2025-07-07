@@ -16,6 +16,9 @@ class MedicalRecord extends Model
         'dokter_id',
         'diagnosis_encrypted',
         'notes',
+        'symptoms',
+        'treatment',
+        'medications',
     ];
 
     public function patient()

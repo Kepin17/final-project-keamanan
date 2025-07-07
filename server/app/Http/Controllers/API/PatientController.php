@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PatientResource;
 use App\Models\MedicalRecord;
 use App\Models\Patient;
+use App\Models\AccessRequest;
+use App\Events\PatientRecordUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 
@@ -29,6 +31,29 @@ class PatientController extends Controller
                 ->get()
                 ->map(function($patient) {
                     $latestRecord = $patient->medicalRecords->first();
+                    
+                    // Get access request status for current doctor
+                    $accessRequest = AccessRequest::where([
+                        'dokter_id' => auth()->id(),
+                        'patient_id' => $patient->id
+                    ])->latest()->first();
+                    
+                    $accessStatus = 'none';
+                    $accessType = null;
+                    $accessCode = null;
+                    $accessExpiry = null;
+                    
+                    if ($accessRequest) {
+                        $accessStatus = $accessRequest->status;
+                        $accessType = $accessRequest->access_type;
+                        if ($accessRequest->status === 'approved' && $accessRequest->expires_at > now()) {
+                            $accessCode = $accessRequest->access_code;
+                            $accessExpiry = $accessRequest->expires_at;
+                        } elseif ($accessRequest->status === 'approved' && $accessRequest->expires_at <= now()) {
+                            $accessStatus = 'expired';
+                        }
+                    }
+                    
                     return [
                         'id' => $patient->id,
                         'name' => $patient->name,
@@ -40,10 +65,10 @@ class PatientController extends Controller
                         'diagnosis' => $latestRecord ? Crypt::decryptString($latestRecord->diagnosis_encrypted) : null,
                         'notes' => $latestRecord ? $latestRecord->notes : null,
                         // Access control fields
-                        'access_status' => $patient->access_status ?? 'none',
-                        'access_type' => $patient->access_type,
-                        'access_code' => $patient->access_code,
-                        'access_expiry' => $patient->access_expiry,
+                        'access_status' => $accessStatus,
+                        'access_type' => $accessType,
+                        'access_code' => $accessCode,
+                        'access_expiry' => $accessExpiry,
                     ];
                 });
 
@@ -94,6 +119,10 @@ class PatientController extends Controller
 
             // Load relasi dan return response
             $patient->load('medicalRecords');
+            
+            // Broadcast the new patient record
+            event(new PatientRecordUpdated($patient, 'created'));
+            
             $response = [
                 'id' => $patient->id,
                 'name' => $patient->name,
@@ -179,6 +208,9 @@ class PatientController extends Controller
                     'notes' => $request->notes
                 ]);
             }
+
+            // Broadcast the patient record update
+            event(new PatientRecordUpdated($patient->fresh(), 'updated'));
 
             return response()->json($patient, 200);
         } catch (\Exception $e) {

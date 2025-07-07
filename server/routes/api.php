@@ -35,6 +35,7 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'role:dokter'])->group(function () {
     Route::post('/request-access', [AccessRequestController::class, 'requestAccess']);
     Route::post('/patients/{id}/access', [AccessRequestController::class, 'showDiagnosis']);
+    Route::get('/my-access-requests', [AccessRequestController::class, 'myRequests']);
 });
 
 // Admin routes

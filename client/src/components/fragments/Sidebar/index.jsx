@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
-import { MdDashboard } from "react-icons/md";
 import List from "../../elements/List";
-import { FaHandHoldingMedical, FaHistory, FaHospitalUser, FaSignOutAlt } from "react-icons/fa";
+import { FaHistory, FaHospitalUser, FaSignOutAlt, FaUserShield } from "react-icons/fa";
 import { RiMenu3Line, RiCloseLine } from "react-icons/ri";
 import Logo from "../../elements/Logo";
 import { useState, useEffect } from "react";
@@ -13,8 +12,38 @@ const SideBar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
+    // Get user info from localStorage or API
+    const getUserInfo = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (token) {
+          const response = await axios.get(getUrlApiWithPath("profile"), {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          setUserRole(response.data.role);
+          setUserName(response.data.name);
+        }
+      } catch (error) {
+        console.error("Failed to get user info:", error);
+        // Fallback to localStorage if API fails
+        const savedUser = localStorage.getItem("user");
+        if (savedUser) {
+          const userData = JSON.parse(savedUser);
+          setUserRole(userData.role);
+          setUserName(userData.name);
+        }
+      }
+    };
+
+    getUserInfo();
+
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
       if (window.innerWidth >= 768) {
@@ -90,28 +119,74 @@ const SideBar = () => {
 
           {/* Main Navigation */}
           <div className="space-y-6 flex-grow">
-            {/* Staff Management Section */}
-            <div className="space-y-3">
-              <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff Management</h3>
-              <ul className="space-y-1">
-                <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHospitalUser />} go="/staff">
-                  Staff Data
-                </List>
-                <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHandHoldingMedical />} go="/medical-approval">
-                  Medical Checkup Approval
-                </List>
-              </ul>
+            {/* User Info Section */}
+            <div className="bg-slate-800 rounded-lg p-4">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <span className="text-white font-bold text-lg">{userName ? userName.charAt(0).toUpperCase() : "U"}</span>
+                </div>
+                <h3 className="text-white font-medium">{userName || "User"}</h3>
+                <p className="text-gray-400 text-sm capitalize">{userRole === "admin" ? "Administrator" : userRole === "dokter" ? "Doctor" : "User"}</p>
+              </div>
             </div>
 
-            {/* Patient Records Section */}
-            <div className="space-y-3">
-              <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Patient Medical Records</h3>
-              <ul className="space-y-1">
-                <List go="/patients" onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHospitalUser />}>
-                  Patient Data
-                </List>
-              </ul>
-            </div>
+            {/* Admin Navigation */}
+            {userRole === "admin" && (
+              <>
+                {/* Staff Management Section */}
+                <div className="space-y-3">
+                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff Management</h3>
+                  <ul className="space-y-1">
+                    <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHospitalUser />} go="/staff">
+                      Staff Data
+                    </List>
+                  </ul>
+                </div>
+
+                {/* Administration Section */}
+                <div className="space-y-3">
+                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Administration</h3>
+                  <ul className="space-y-1">
+                    <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaUserShield />} go="/admin/access-requests">
+                      Access Requests
+                    </List>
+                  </ul>
+                </div>
+              </>
+            )}
+
+            {/* Doctor Navigation */}
+            {userRole === "dokter" && (
+              <>
+                {/* Patient Records Section */}
+                <div className="space-y-3">
+                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Patient Medical Records</h3>
+                  <ul className="space-y-1">
+                    <List go="/patients" onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHospitalUser />}>
+                      Patient Data
+                    </List>
+                  </ul>
+                </div>
+
+                {/* My Access Requests */}
+                <div className="space-y-3">
+                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">My Requests</h3>
+                  <ul className="space-y-1">
+                    <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHistory />} go="/my-requests">
+                      My Access Requests
+                    </List>
+                  </ul>
+                </div>
+              </>
+            )}
+
+            {/* Loading state */}
+            {!userRole && (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-gray-400">Loading...</span>
+              </div>
+            )}
           </div>
 
           {/* Footer with Logout */}

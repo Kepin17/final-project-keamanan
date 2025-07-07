@@ -12,6 +12,8 @@ class AccessRequest extends Model
     protected $fillable = [
         'dokter_id',
         'patient_id',
+        'access_type',
+        'reason',
         'status',
         'access_code',
         'expires_at',
