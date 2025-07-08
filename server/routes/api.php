@@ -6,6 +6,7 @@ use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\PatientController;
 use App\Http\Controllers\API\AccessRequestController;
 use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\API\OtpController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +21,15 @@ use App\Http\Controllers\API\UserController;
 
 // Public routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/verify-login-otp', [AuthController::class, 'verifyLoginOtp']);
+
+// OTP routes (public)
+Route::prefix('otp')->group(function () {
+    Route::post('/send', [OtpController::class, 'sendOtp']);
+    Route::post('/verify', [OtpController::class, 'verifyOtp']);
+    Route::post('/resend', [OtpController::class, 'resendOtp']);
+    Route::get('/status', [OtpController::class, 'checkOtpStatus']);
+});
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {

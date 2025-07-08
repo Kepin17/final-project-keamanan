@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\API;
 
 use App\Models\User;
+use App\Models\Otp;
+use App\Mail\OtpMail;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Exception;
 
 class AuthController extends Controller
@@ -98,7 +101,8 @@ class AuthController extends Controller
 
             // Only include password validation if it's being updated
             if ($request->has('password')) {
-                $rules["password"] = "string|min:6";
+                $rules["password"] = "string|min:6|confirmed";
+                $rules["password_confirmation"] = "string|min:6";
             }
 
             $data = $request->validate($rules);
@@ -176,7 +180,8 @@ class AuthController extends Controller
                 "email" => "required|email|unique:users",
                 "phone" => "required|string",
                 "department" => "required|string",
-                "password" => "required|string|min:6",
+                "password" => "required|string|min:6|confirmed",
+                "password_confirmation" => "required|string|min:6",
                 "role" => "required|string|in:admin,dokter"
             ]);
 
@@ -210,17 +215,117 @@ class AuthController extends Controller
 
         if (!$user || !Hash::check($data["password"], $user->password)) {
             return response()->json([
-                "message" => "Mail or password is incorrect"
+                "message" => "Email or password is incorrect"
             ], 401);
         }
 
-        $token = $user->createToken('api-token')->plainTextToken;
+        try {
+            // Check if there's an existing OTP for this email that's still in cooldown
+            $existingOtp = Otp::where('email', $user->email)
+                             ->where('purpose', 'login')
+                             ->where('is_verified', false)
+                             ->first();
 
-        return response()->json([
-            "message" => "Login successful",
-            "role" => $user->role,
-            "token" => $token
-        ], 200);
+            if ($existingOtp && !$existingOtp->canResend()) {
+                $remainingTime = $existingOtp->getRemainingCooldown();
+                return response()->json([
+                    "success" => false,
+                    "message" => "Please wait {$remainingTime} seconds before requesting another OTP",
+                    "otp_required" => true,
+                    "email" => $user->email,
+                    "remaining_seconds" => $remainingTime
+                ], 429);
+            }
+
+            // Create or update OTP for login verification
+            $otp = Otp::createForEmail($user->email, 'login');
+
+            // Send OTP email
+            Mail::to($user->email)->send(new OtpMail($otp, $user->name));
+
+            return response()->json([
+                "success" => true,
+                "message" => "Login credentials verified. Please check your email for the verification code.",
+                "otp_required" => true,
+                "email" => $user->email,
+                "user_info" => [
+                    "name" => $user->name,
+                    "role" => $user->role
+                ]
+            ], 200);
+
+        } catch (Exception $e) {
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to send verification code: " . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify OTP and complete login
+     */
+    public function verifyLoginOtp(Request $request) {
+        $data = $request->validate([
+            "email" => "required|email",
+            "otp_code" => "required|string|size:6"
+        ]);
+
+        try {
+            $user = User::where("email", $data["email"])->first();
+
+            if (!$user) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "User not found"
+                ], 404);
+            }
+
+            $otp = Otp::where('email', $data["email"])
+                     ->where('purpose', 'login')
+                     ->where('is_verified', false)
+                     ->first();
+
+            if (!$otp) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "No valid OTP found. Please request a new login."
+                ], 404);
+            }
+
+            $result = $otp->verify($data["otp_code"]);
+
+            if ($result['success']) {
+                // Create access token after successful OTP verification
+                $token = $user->createToken('api-token')->plainTextToken;
+
+                return response()->json([
+                    "success" => true,
+                    "message" => "Login successful",
+                    "role" => $user->role,
+                    "token" => $token,
+                    "user" => [
+                        "id" => $user->id,
+                        "name" => $user->name,
+                        "email" => $user->email,
+                        "role" => $user->role,
+                        "department" => $user->department
+                    ]
+                ], 200);
+            } else {
+                return response()->json([
+                    "success" => false,
+                    "message" => $result['message'],
+                    "attempts_remaining" => $result['attempts_remaining'] ?? null
+                ], 400);
+            }
+
+        } catch (Exception $e) {
+            return response()->json([
+                "success" => false,
+                "message" => "Verification failed: " . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function logout(Request $request)

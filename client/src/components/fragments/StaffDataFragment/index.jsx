@@ -7,6 +7,25 @@ import { getUrlApiWithPath } from "../../../utils/url_api";
 import { toast } from "react-toastify";
 
 const StaffDataFragment = () => {
+  // Department options
+  const departmentOptions = [
+    { value: "Emergency Department", label: "Emergency Department" },
+    { value: "Cardiology", label: "Cardiology" },
+    { value: "Internal Medicine", label: "Internal Medicine" },
+    { value: "Pediatrics", label: "Pediatrics" },
+    { value: "Obstetrics & Gynecology", label: "Obstetrics & Gynecology" },
+    { value: "Surgery", label: "Surgery" },
+    { value: "Orthopedics", label: "Orthopedics" },
+    { value: "Radiology", label: "Radiology" },
+    { value: "Laboratory", label: "Laboratory" },
+    { value: "Pharmacy", label: "Pharmacy" },
+    { value: "Nursing", label: "Nursing" },
+    { value: "Administration", label: "Administration" },
+    { value: "IT Department", label: "IT Department" },
+    { value: "Human Resources", label: "Human Resources" },
+    { value: "Finance", label: "Finance" },
+  ];
+
   const [staffList, setStaffList] = useState([]);
   const [filteredStaff, setFilteredStaff] = useState([]);
   const [selectedRole, setSelectedRole] = useState("all");
@@ -19,6 +38,7 @@ const StaffDataFragment = () => {
     phone: "",
     department: "",
     password: "",
+    confirmPassword: "",
     role: "dokter", // Default to 'dokter' as expected by backend
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -65,11 +85,12 @@ const StaffDataFragment = () => {
     setSelectedRole(role);
     if (!Array.isArray(staffList)) return;
 
-    if (role === "all") {
-      setFilteredStaff(staffList);
-    } else {
-      setFilteredStaff(staffList.filter((staff) => staff?.role === role));
-    }
+    const filtered = staffList.filter(
+      (staff) =>
+        (role === "all" || staff?.role === role) &&
+        (searchQuery === "" || staff?.name?.toLowerCase().includes(searchQuery.toLowerCase()) || staff?.email?.toLowerCase().includes(searchQuery.toLowerCase()) || staff?.department?.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+    setFilteredStaff(filtered);
   };
 
   const handleSearch = (e) => {
@@ -77,7 +98,9 @@ const StaffDataFragment = () => {
     setSearchQuery(query);
     if (!Array.isArray(staffList)) return;
 
-    const filtered = staffList.filter((staff) => (selectedRole === "all" || staff?.role === selectedRole) && (staff?.name?.toLowerCase().includes(query) || staff?.email?.toLowerCase().includes(query)));
+    const filtered = staffList.filter(
+      (staff) => (selectedRole === "all" || staff?.role === selectedRole) && (staff?.name?.toLowerCase().includes(query) || staff?.email?.toLowerCase().includes(query) || staff?.department?.toLowerCase().includes(query))
+    );
     setFilteredStaff(filtered);
   };
 
@@ -94,6 +117,7 @@ const StaffDataFragment = () => {
       name: "",
       email: "",
       password: "",
+      confirmPassword: "",
       phone: "",
       department: "",
       role: "dokter", // Use 'dokter' as expected by backend
@@ -114,6 +138,8 @@ const StaffDataFragment = () => {
       email: staff.email,
       phone: staff.phone || "",
       department: staff.department || "",
+      password: "",
+      confirmPassword: "",
       role: staff.role,
       // Don't set password for editing
     });
@@ -126,6 +152,20 @@ const StaffDataFragment = () => {
     setIsSubmitting(true);
     setError("");
 
+    // Validate confirm password for new staff
+    if (!currentStaff && formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Validate password length
+    if (!currentStaff && formData.password.length < 6) {
+      setError("Password must be at least 6 characters long");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const token = localStorage.getItem("token");
       const headers = {
@@ -136,18 +176,31 @@ const StaffDataFragment = () => {
       let response;
       if (currentStaff) {
         // Update existing staff
-        response = await axios.put(
-          getUrlApiWithPath(`users/${currentStaff.id}`),
-          {
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            department: formData.department,
-            role: formData.role,
-            ...(formData.password && { password: formData.password }),
-          },
-          { headers }
-        );
+        const updateData = {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          department: formData.department,
+          role: formData.role,
+        };
+
+        // Only include password if it's provided and matches confirmation
+        if (formData.password) {
+          if (formData.password !== formData.confirmPassword) {
+            setError("Passwords do not match");
+            setIsSubmitting(false);
+            return;
+          }
+          if (formData.password.length < 6) {
+            setError("Password must be at least 6 characters long");
+            setIsSubmitting(false);
+            return;
+          }
+          updateData.password = formData.password;
+          updateData.password_confirmation = formData.confirmPassword;
+        }
+
+        response = await axios.put(getUrlApiWithPath(`users/${currentStaff.id}`), updateData, { headers });
         toast.success("Staff member updated successfully");
       } else {
         // Create new staff
@@ -157,6 +210,7 @@ const StaffDataFragment = () => {
             name: formData.name,
             email: formData.email,
             password: formData.password,
+            password_confirmation: formData.confirmPassword,
             phone: formData.phone,
             department: formData.department,
             role: formData.role,
@@ -220,63 +274,186 @@ const StaffDataFragment = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      {/* Search and Filter Section */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <div className="flex items-center gap-4 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
-            <Input type="text" placeholder="Search staff..." value={searchQuery} onChange={handleSearch} className="pl-10 pr-4 py-2 w-full" />
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+      {/* Header Section */}
+      <div className="border-b border-gray-200 pb-6 mb-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Staff Management</h2>
+            <p className="text-gray-600 mt-1">Manage and monitor your healthcare staff</p>
           </div>
-          <select value={selectedRole} onChange={(e) => handleFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="all">All Roles</option>
-            <option value="admin">Administrator</option>
-            <option value="dokter">Doctor</option>
-          </select>
-          <Button className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2" onClick={handleAddStaff}>
-            <FaPlus /> Add Staff
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg flex items-center gap-2 transition-colors duration-200 shadow-sm lg:w-auto w-full justify-center" onClick={handleAddStaff}>
+            <FaPlus className="text-sm" /> Add New Staff
           </Button>
         </div>
       </div>
 
+      {/* Search and Filter Section */}
+      <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Search Input */}
+          <div className="relative flex-1 lg:max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FaSearch className="h-4 w-4 text-gray-400" />
+            </div>
+            <Input
+              type="text"
+              placeholder="Search by name, email, or department..."
+              value={searchQuery}
+              onChange={handleSearch}
+              className="pl-10 pr-4 py-2.5 w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  handleSearch({ target: { value: "" } });
+                }}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                <svg className="h-4 w-4 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Role Filter */}
+          <div className="lg:w-48">
+            <select
+              value={selectedRole}
+              onChange={(e) => handleFilter(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition-colors duration-200"
+            >
+              <option value="all">All Roles</option>
+              <option value="admin">Administrator</option>
+              <option value="dokter">Doctor</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Quick Filter Buttons */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="flex flex-wrap gap-2">
+            <span className="text-sm font-medium text-gray-700 mr-2 py-1">Quick filters:</span>
+            {["Emergency Department", "Cardiology", "Surgery", "Pediatrics"].map((dept) => (
+              <button
+                key={dept}
+                onClick={() => {
+                  setSearchQuery(dept);
+                  handleSearch({ target: { value: dept } });
+                }}
+                className="px-3 py-1 text-xs bg-white border border-gray-300 rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors duration-200"
+              >
+                {dept}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedRole("all");
+                handleFilter("all");
+              }}
+              className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors duration-200"
+            >
+              Clear all
+            </button>
+          </div>
+        </div>
+
+        {/* Results Counter */}
+        {!isLoading && !error && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <p className="text-sm text-gray-600">
+              Showing {filteredStaff.length} of {staffList.length} staff members
+              {searchQuery && (
+                <span className="ml-1">
+                  for "<span className="font-medium text-blue-600">{searchQuery}</span>"
+                </span>
+              )}
+              {selectedRole !== "all" && (
+                <span className="ml-1">
+                  · Role: <span className="font-medium text-blue-600 capitalize">{selectedRole}</span>
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Loading State */}
       {isLoading && (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Loading staff data...</span>
+        <div className="flex flex-col justify-center items-center py-16">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute top-0 left-0"></div>
+          </div>
+          <div className="mt-4 text-center">
+            <p className="text-gray-600 font-medium">Loading staff data...</p>
+            <p className="text-gray-500 text-sm mt-1">Please wait while we fetch the latest information</p>
+          </div>
         </div>
       )}
 
       {/* Error State */}
       {error && !isLoading && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center">
-            <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-red-700">{error}</p>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-red-800 font-medium mb-1">Error Loading Data</h3>
+              <p className="text-red-700 text-sm">{error}</p>
+              <button onClick={fetchStaffData} className="mt-3 bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200">
+                Try Again
+              </button>
+            </div>
           </div>
-          <button onClick={fetchStaffData} className="mt-2 text-red-600 hover:text-red-800 text-sm underline">
-            Try again
-          </button>
         </div>
       )}
 
       {/* Empty State */}
       {!isLoading && !error && filteredStaff.length === 0 && (
-        <div className="text-center py-12">
-          <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            />
-          </svg>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No staff members found</h3>
-          <p className="text-gray-500 mb-4">{searchQuery || selectedRole !== "all" ? "Try adjusting your search or filter." : "Get started by adding your first staff member."}</p>
-          <Button onClick={handleAddStaff} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 mx-auto">
-            <FaPlus /> Add Staff
-          </Button>
+        <div className="text-center py-16 px-4">
+          <div className="max-w-md mx-auto">
+            <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+              <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">{searchQuery || selectedRole !== "all" ? "No staff members found" : "No staff members yet"}</h3>
+            <p className="text-gray-500 mb-6">
+              {searchQuery || selectedRole !== "all" ? "Try adjusting your search criteria or filters to find what you're looking for." : "Get started by adding your first staff member to begin managing your healthcare team."}
+            </p>
+            {searchQuery || selectedRole !== "all" ? (
+              <div className="space-y-3">
+                <Button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedRole("all");
+                    handleFilter("all");
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2.5 rounded-lg transition-colors duration-200 mr-3"
+                >
+                  Clear Filters
+                </Button>
+                <Button onClick={handleAddStaff} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg flex items-center gap-2 mx-auto transition-colors duration-200">
+                  <FaPlus /> Add New Staff
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={handleAddStaff} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg flex items-center gap-2 mx-auto transition-colors duration-200">
+                <FaPlus /> Add Your First Staff Member
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -371,7 +548,31 @@ const StaffDataFragment = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Password</label>
-                <Input type="password" name="password" value={formData.password} onChange={handleInputChange} className="w-full" required />
+                <Input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="w-full"
+                  required={!currentStaff}
+                  placeholder={currentStaff ? "Leave blank to keep current password" : "Enter password"}
+                />
+                {!currentStaff && <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>}
+              </div>
+
+              {/* Confirm Password Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                <Input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  className="w-full"
+                  required={!currentStaff || formData.password}
+                  placeholder={currentStaff ? "Confirm new password if changing" : "Confirm password"}
+                />
+                {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && <p className="text-xs text-red-500 mt-1">Passwords do not match</p>}
               </div>
 
               <div>
@@ -381,7 +582,14 @@ const StaffDataFragment = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">Department</label>
-                <Input type="text" name="department" value={formData.department} onChange={handleInputChange} className="w-full" required />
+                <select name="department" value={formData.department} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                  <option value="">Select Department</option>
+                  {departmentOptions.map((dept) => (
+                    <option key={dept.value} value={dept.value}>
+                      {dept.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

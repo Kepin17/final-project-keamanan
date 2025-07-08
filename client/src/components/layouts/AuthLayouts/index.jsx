@@ -2,8 +2,10 @@ import { IoLogIn } from "react-icons/io5";
 import Button from "../../elements/Button";
 import Logo from "../../elements/Logo";
 import { Link } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-const AuthLayout = ({ title, onSubmit, children, selfRegist }) => {
+const AuthLayout = ({ title, onSubmit, children, selfRegist, isLoading = false }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -57,14 +59,15 @@ const AuthLayout = ({ title, onSubmit, children, selfRegist }) => {
             </div>
           )}
 
-          <Button>
+          <Button disabled={isLoading}>
             <div className="flex items-center justify-center gap-2 w-full">
               <IoLogIn className="text-xl text-white" />
-              <span className="text-white font-semibold">{title === "login" ? "Login" : title === "register" ? "Register" : "Submit OTP"}</span>
+              <span className="text-white font-semibold">{isLoading ? "Processing..." : title === "login" ? "Login" : title === "register" ? "Register" : "Submit OTP"}</span>
             </div>
           </Button>
         </form>
       </div>
+      <ToastContainer />
     </div>
   );
 };
