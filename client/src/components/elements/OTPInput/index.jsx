@@ -60,16 +60,26 @@ const OtpInput = ({ length = 6, onChange = () => {}, disabled = false }) => {
   };
 
   return (
-    <div className="opt-input-wrapper w-full flex items-center justify-center mt-5 gap-2">
+    <div className="otp-input-wrapper w-full flex items-center justify-center mt-6 gap-2 sm:gap-3">
       {Array.from({ length }).map((_, index) => (
         <input
           key={index}
           ref={(ref) => (inputRefs.current[index] = ref)}
-          className={`w-12 h-12 border-2 rounded-md text-center text-lg font-semibold 
-            ${disabled ? "border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed" : "border-gray-400 bg-white text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"} 
-            transition-all duration-200`}
+          className={`
+            w-12 h-12 sm:w-14 sm:h-14 border-2 rounded-xl text-center text-lg sm:text-xl font-bold
+            transition-all duration-300 transform
+            ${
+              disabled
+                ? "border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                : `border-gray-300 bg-white text-gray-800 
+                 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 focus:scale-110
+                 hover:border-blue-400 hover:shadow-md`
+            }
+            ${otp[index] ? "border-blue-500 bg-blue-50 shadow-md scale-105" : ""}
+          `}
           type="text"
           inputMode="numeric"
+          pattern="[0-9]*"
           maxLength={1}
           value={otp[index]}
           autoFocus={index === 0 && !disabled}
@@ -77,6 +87,7 @@ const OtpInput = ({ length = 6, onChange = () => {}, disabled = false }) => {
           onChange={(e) => handleChange(e, index)}
           onKeyDown={(e) => handleKeyDown(e, index)}
           onPaste={handlePaste}
+          aria-label={`Digit ${index + 1} of ${length}`}
         />
       ))}
     </div>

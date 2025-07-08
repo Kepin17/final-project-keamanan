@@ -6,8 +6,8 @@ const MedicalApprovalPage = () => {
     <div className="max-w-7xl mx-auto">
       <div className="mb-8">
         <div className="flex flex-col space-y-2">
-          <h1 className="text-2xl font-bold text-gray-800 sm:text-3xl">Medical Records Access Approval</h1>
-          <p className="text-sm text-gray-600 max-w-2xl">Manage access requests from doctors to view and edit patient medical records</p>
+          <h1 className="text-2xl font-bold text-gray-300 sm:text-3xl">Medical Records Access Approval</h1>
+          <p className="text-sm text-gray-400 max-w-2xl">Manage access requests from doctors to view and edit patient medical records</p>
         </div>
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div className="mt-3 sm:mt-0">

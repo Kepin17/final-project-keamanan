@@ -95,38 +95,43 @@ const SideBar = () => {
   return (
     <>
       {/* Mobile Hamburger Button */}
-      <button onClick={toggleMobileMenu} className="md:hidden fixed top-4 right-4 z-50 p-2 rounded-lg bg-slate-800 text-w`h`ite hover:bg-slate-700 transition-all">
-        {isMobileMenuOpen ? <RiCloseLine className="text-2xl" /> : <RiMenu3Line className="text-2xl" />}
+      <button
+        onClick={toggleMobileMenu}
+        className="lg:hidden fixed top-4 right-4 z-50 p-3 rounded-xl bg-slate-800 text-white hover:bg-slate-700 transition-all duration-300 shadow-lg hover:shadow-xl focus-ring"
+        aria-label="Toggle navigation menu"
+      >
+        {isMobileMenuOpen ? <RiCloseLine className="text-xl" /> : <RiMenu3Line className="text-xl" />}
       </button>
 
       {/* Overlay for mobile */}
-      {isMobileMenuOpen && <div className="md:hidden fixed inset-0 bg-black opacity-50 z-30" onClick={toggleMobileMenu} />}
+      {isMobileMenuOpen && <div className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-30 animate-fade-in" onClick={toggleMobileMenu} aria-hidden="true" />}
 
       {/* Sidebar */}
       <div
         className={`
-        fixed md:static top-0 left-0 z-40
-        w-[280px] min-h-screen bg-slate-900
-        transition-transform duration-300 ease-in-out
-        ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-      `}
+          fixed lg:static top-0 left-0 z-40
+          w-72 min-h-screen bg-gradient-to-b from-slate-900 to-slate-800
+          transition-all duration-300 ease-in-out
+          ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          shadow-2xl lg:shadow-xl
+        `}
       >
         <nav className="h-full px-6 py-8 flex flex-col">
           {/* Logo section */}
-          <div className="mb-8">
+          <div className="mb-8 animate-slide-up">
             <Logo>MedInsight</Logo>
           </div>
 
           {/* Main Navigation */}
-          <div className="space-y-6 flex-grow">
+          <div className="space-y-6 flex-grow animate-slide-up  " style={{ animationDelay: "0.1s" }}>
             {/* User Info Section */}
-            <div className="bg-slate-800 rounded-lg p-4">
+            <div className="card-base bg-slate-800/50 backdrop-blur-sm rounded-xl p-4 border border-slate-700">
               <div className="text-center">
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
                   <span className="text-white font-bold text-lg">{userName ? userName.charAt(0).toUpperCase() : "U"}</span>
                 </div>
-                <h3 className="text-white font-medium">{userName || "User"}</h3>
-                <p className="text-gray-400 text-sm capitalize">{userRole === "admin" ? "Administrator" : userRole === "dokter" ? "Doctor" : "User"}</p>
+                <h3 className="text-blue-500 font-semibold text-responsive-md">{userName || "User"}</h3>
+                <p className="text-gray-400 text-responsive-xs capitalize mt-1">{userRole === "admin" ? "Administrator" : userRole === "dokter" ? "Doctor" : "User"}</p>
               </div>
             </div>
 
@@ -135,8 +140,8 @@ const SideBar = () => {
               <>
                 {/* Staff Management Section */}
                 <div className="space-y-3">
-                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff Management</h3>
-                  <ul className="space-y-1">
+                  <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Staff Management</h3>
+                  <ul className="space-y-2">
                     <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHospitalUser />} go="/staff">
                       Staff Data
                     </List>
@@ -145,8 +150,8 @@ const SideBar = () => {
 
                 {/* Administration Section */}
                 <div className="space-y-3">
-                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Administration</h3>
-                  <ul className="space-y-1">
+                  <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</h3>
+                  <ul className="space-y-2">
                     <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaUserShield />} go="/admin/access-requests">
                       Access Requests
                     </List>
@@ -160,8 +165,8 @@ const SideBar = () => {
               <>
                 {/* Patient Records Section */}
                 <div className="space-y-3">
-                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Patient Medical Records</h3>
-                  <ul className="space-y-1">
+                  <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Patient Medical Records</h3>
+                  <ul className="space-y-2">
                     <List go="/patients" onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHospitalUser />}>
                       Patient Data
                     </List>
@@ -170,8 +175,8 @@ const SideBar = () => {
 
                 {/* My Access Requests */}
                 <div className="space-y-3">
-                  <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">My Requests</h3>
-                  <ul className="space-y-1">
+                  <h3 className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">My Requests</h3>
+                  <ul className="space-y-2">
                     <List onClick={() => isMobile && setIsMobileMenuOpen(false)} icon={<FaHistory />} go="/my-requests">
                       My Access Requests
                     </List>
@@ -183,17 +188,17 @@ const SideBar = () => {
             {/* Loading state */}
             {!userRole && (
               <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-2 text-gray-400">Loading...</span>
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+                <span className="ml-3 text-gray-400 text-responsive-sm">Loading...</span>
               </div>
             )}
           </div>
 
           {/* Footer with Logout */}
-          <div className="pt-6 border-t border-slate-700">
-            <button onClick={handleLogout} disabled={isLoggingOut} className="w-full flex items-center px-4 py-2 text-gray-300 hover:bg-slate-800 rounded-lg transition-colors">
+          <div className="pt-6 border-t border-slate-700 animate-slide-up" style={{ animationDelay: "0.2s" }}>
+            <button onClick={handleLogout} disabled={isLoggingOut} className="w-full flex items-center px-4 py-3 text-gray-300 hover:bg-slate-800/50 rounded-xl transition-all duration-300 hover:text-white disabled:opacity-50 focus-ring">
               <FaSignOutAlt className="w-5 h-5 mr-3" />
-              <span>{isLoggingOut ? "Logging out..." : "Logout"}</span>
+              <span className="text-responsive-sm">{isLoggingOut ? "Logging out..." : "Logout"}</span>
             </button>
             <p className="mt-4 text-center text-gray-500 text-xs">&copy; {new Date().getFullYear()} MedInsight. All rights reserved.</p>
           </div>

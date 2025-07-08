@@ -4,6 +4,7 @@ import OtpInput from "../../elements/OTPInput";
 import { useOtp } from "../../../hooks/useOtp";
 import { useAuth } from "../../../hooks/useAuth";
 import { toast } from "react-toastify";
+import Button from "../../elements/Button";
 
 const OTPFragment = () => {
   const [otpCode, setOtpCode] = useState("");
@@ -135,97 +136,130 @@ const OTPFragment = () => {
   const isResendingState = purpose === "login" ? authLoading : isResending;
 
   return (
-    <div className="otp-container max-w-md mx-auto p-6">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">{getTitle()}</h2>
+    <div className="otp-container w-full max-w-lg mx-auto">
+      {/* Header Section */}
+      <div className="text-center mb-8 animate-fade-in">
+        <h2 className="text-responsive-2xl font-bold text-slate-800 mb-3">{getTitle()}</h2>
 
+        {/* User Info Card for Login */}
         {userInfo && purpose === "login" && (
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-700">
-              Welcome back, <strong>{userInfo.name}</strong>
-            </p>
-            <p className="text-xs text-blue-600">Role: {userInfo.role}</p>
+          <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200 animate-slide-up">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-lg">{userInfo.name?.charAt(0)?.toUpperCase() || "U"}</span>
+              </div>
+              <div className="text-left">
+                <p className="text-responsive-md font-semibold text-blue-800">Welcome back, {userInfo.name}</p>
+                <p className="text-responsive-xs text-blue-600 capitalize">{userInfo.role === "admin" ? "Administrator" : userInfo.role === "dokter" ? "Doctor" : userInfo.role}</p>
+              </div>
+            </div>
           </div>
         )}
 
+        {/* Email Input for Non-Login */}
         {!otpSent && purpose !== "login" && (
-          <div className="mb-4">
-            <p className="text-gray-600 mb-4">Enter your email to receive a verification code</p>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isLoadingState}
-            />
-            <button onClick={handleSendOtp} disabled={isLoadingState || !email} className="w-full mt-4 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              {isLoadingState ? "Sending..." : "Send Verification Code"}
-            </button>
+          <div className="mb-6 animate-slide-up">
+            <p className="text-slate-600 text-responsive-md mb-4">Enter your email to receive a verification code</p>
+            <div className="space-y-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="input-enhanced w-full px-4 py-3 border-2 border-gray-300 rounded-xl text-responsive-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                disabled={isLoadingState}
+              />
+              <Button onClick={handleSendOtp} disabled={isLoadingState || !email} variant="primary" size="lg" isFull loading={isLoadingState}>
+                {isLoadingState ? "Sending..." : "Send Verification Code"}
+              </Button>
+            </div>
           </div>
         )}
 
+        {/* Instructions */}
         {(otpSent || purpose === "login") && !otpVerified && (
-          <>
-            <p className="text-gray-600 mb-2">{getVerificationMessage()}</p>
-            <p className="text-sm text-blue-600 mb-4">{purpose === "login" ? `Verification code sent to: ${email}` : `Code sent to: ${email}`}</p>
-          </>
+          <div className="animate-slide-up">
+            <p className="text-slate-600 text-responsive-md mb-2">{getVerificationMessage()}</p>
+            <p className="text-responsive-sm text-blue-600 mb-4 font-medium">{purpose === "login" ? `Code sent to: ${email}` : `Verification code sent to: ${email}`}</p>
+          </div>
         )}
 
+        {/* Success Message */}
         {otpVerified && (
-          <div className="text-green-600 mb-4">
-            <p className="font-semibold">✓ Verification Successful!</p>
-            <p className="text-sm">{purpose === "login" ? "Logging you in..." : "Redirecting..."}</p>
+          <div className="text-center mb-6 animate-scale-in">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xl">✓</span>
+              </div>
+            </div>
+            <p className="text-green-600 font-semibold text-responsive-lg mb-1">Verification Successful!</p>
+            <p className="text-responsive-sm text-green-500">{purpose === "login" ? "Logging you in..." : "Redirecting..."}</p>
           </div>
         )}
       </div>
 
+      {/* OTP Input Section */}
       {(otpSent || purpose === "login") && !otpVerified && (
-        <div className="mb-6">
+        <div className="mb-8 animate-fade-in" style={{ animationDelay: "0.2s" }}>
           <OtpInput length={6} onChange={handleOtpChange} disabled={isVerifyingState} />
 
+          {/* Loading State */}
           {isVerifyingState && (
-            <div className="text-center mt-4">
-              <p className="text-blue-600">Verifying...</p>
+            <div className="text-center mt-4 animate-pulse">
+              <div className="inline-flex items-center gap-2 text-blue-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                <span className="text-responsive-sm">Verifying...</span>
+              </div>
             </div>
           )}
 
+          {/* Attempt Warning */}
           {attemptsRemaining < 3 && attemptsRemaining > 0 && (
-            <div className="text-center mt-2">
-              <p className="text-orange-600 text-sm">
-                {attemptsRemaining} attempt{attemptsRemaining !== 1 ? "s" : ""} remaining
-              </p>
+            <div className="text-center mt-4">
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                <span className="text-orange-600 text-responsive-sm">
+                  ⚠️ {attemptsRemaining} attempt{attemptsRemaining !== 1 ? "s" : ""} remaining
+                </span>
+              </div>
             </div>
           )}
 
+          {/* Max Attempts Reached */}
           {attemptsRemaining === 0 && (
-            <div className="text-center mt-2">
-              <p className="text-red-600 text-sm">Too many failed attempts. Please request a new code.</p>
+            <div className="text-center mt-4">
+              <div className="inline-flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+                <span className="text-red-600 text-responsive-sm">🚫 Too many failed attempts. Please request a new code.</span>
+              </div>
             </div>
           )}
         </div>
       )}
 
+      {/* Footer Actions */}
       {(otpSent || purpose === "login") && !otpVerified && (
-        <div className="text-center">
-          <div className="mb-4">
-            <button onClick={handleResendOtp} disabled={(!canResend && purpose !== "login") || isResendingState} className="text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed text-sm">
-              {isResendingState ? "Sending..." : canResend || purpose === "login" ? "Send New Code" : `Resend Code in ${formatRemainingTime()}`}
-            </button>
+        <div className="text-center space-y-4 animate-fade-in" style={{ animationDelay: "0.4s" }}>
+          {/* Resend Button */}
+          <div>
+            <Button onClick={handleResendOtp} disabled={(!canResend && purpose !== "login") || isResendingState} variant="outline" size="md" loading={isResendingState}>
+              {canResend || purpose === "login" ? "Send New Code" : `Resend in ${formatRemainingTime()}`}
+            </Button>
           </div>
 
-          <div className="text-xs text-gray-500">
+          {/* Help Text */}
+          <div className="space-y-2 text-responsive-xs text-slate-500">
             <p>Didn't receive the code? Check your spam folder</p>
             <p>Code expires in 10 minutes</p>
           </div>
+
+          {/* Back to Login */}
+          <div className="pt-4 border-t border-slate-200">
+            <button onClick={() => navigate("/login")} className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-700 text-responsive-sm transition-colors focus-ring rounded-lg px-3 py-2">
+              <span>←</span>
+              <span>Back to Login</span>
+            </button>
+          </div>
         </div>
       )}
-
-      <div className="text-center mt-6">
-        <button onClick={() => navigate("/login")} className="text-gray-500 hover:text-gray-700 text-sm">
-          ← Back to Login
-        </button>
-      </div>
     </div>
   );
 };

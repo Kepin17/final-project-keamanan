@@ -9,9 +9,11 @@ const OtpPage = () => {
   };
 
   return (
-    <AuthLayout title={"otp"} selfRegist={false} onSubmit={handleDummySubmit} isLoading={false}>
-      <OTPFragment />
-    </AuthLayout>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+      <AuthLayout title={"otp"} selfRegist={false} onSubmit={handleDummySubmit} isLoading={false}>
+        <OTPFragment />
+      </AuthLayout>
+    </div>
   );
 };
 
